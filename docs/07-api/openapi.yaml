@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info:
+  title: Imora API
+  version: 0.1.0
+  description: >
+    Draft OpenAPI specification for the Imora platform API.
+paths: {}
+components:
+  schemas: {}
