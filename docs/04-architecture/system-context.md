@@ -8,6 +8,34 @@
 
 **Imora** — one box. Everything inside it (the eight bounded contexts, the domain entities) is out of scope for this document by design; a system context diagram that shows internal detail has stopped being a system context diagram.
 
+```mermaid
+C4Context
+  title System Context — Imora
+
+  Person(engineer, "Engineer", "Chidi, Jon — investigates sessions, errors, regressions")
+  Person(compliance, "Compliance Officer", "Adaeze, Marcus — audit trail, legal holds, exports")
+  Person(operator, "Platform Operator", "Priya — deploys, configures, operates")
+  Person(subject, "Data Subject", "The end user being captured — never interacts with Imora directly")
+
+  System(imora, "Imora", "Self-hosted frontend observability + security platform")
+
+  System_Ext(webapp, "Org's Web Application", "Required — embeds browser-sdk")
+  System_Ext(backend, "Org's Backend Services", "Optional — TraceLink correlation")
+  System_Ext(idp, "Identity Provider", "Optional, Enterprise-tier SSO")
+  System_Ext(notif, "Notification Channels", "Optional — Slack, email, webhooks")
+
+  Rel(subject, webapp, "Browses, unaware of Imora")
+  Rel(webapp, imora, "Streams masked events")
+  Rel(engineer, imora, "Investigates via dashboard")
+  Rel(compliance, imora, "Queries audit trail, applies holds")
+  Rel(operator, imora, "Deploys and operates")
+  Rel(imora, backend, "Correlates via TraceLink, if configured")
+  Rel(imora, idp, "Authenticates via, if configured")
+  Rel(imora, notif, "Delivers alerts, if configured")
+```
+
+The three optional external systems are drawn the same way regardless of whether a given deployment is connected or air-gapped — per the finding below, their presence is a configuration choice, not a structural one.
+
 ---
 
 ## People

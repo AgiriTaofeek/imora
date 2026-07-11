@@ -74,11 +74,12 @@ ClickHouse is an OLAP columnar store optimized for inserts and aggregate reads, 
 | `event_id` | UUID | |
 | `sequence_number` | UInt64 | Monotonic, per [domain-model.md](../02-domain/domain-model.md)'s gap-detection requirement. |
 | `actor_user_id` | UUID | |
-| `action` | Enum8 | VIEW, EXPORT, UNMASK, DELETE, DELETION_SKIPPED |
-| `target_record_type` | String | |
+| `action` | Enum8 | VIEW, EXPORT, UNMASK, DELETE, DELETION_SKIPPED, CONFIG_CHANGED |
+| `target_record_type` | String | For `CONFIG_CHANGED`: RetentionPolicy, FieldClassification, or UserRole, per [audit-logging.md](../08-security/audit-logging.md). |
 | `target_record_id` | UUID | |
 | `source_ip` | String | |
 | `reason` | Nullable(String) | Required non-null when `action = UNMASK`, enforced at the `query-api`/`workers` write path (BR-6) — ClickHouse itself doesn't enforce conditional nullability, the writing service does. |
+| `old_value` / `new_value` | Nullable(String) | Required non-null when `action = CONFIG_CHANGED` — same enforced-at-write-path pattern as `reason` above. |
 | `occurred_at` | DateTime64 | |
 | **ORDER BY** | `(target_record_id, occurred_at)` | "Who viewed this specific record" (stories M1, A1) is the dominant read shape — this ordering is what makes Adaeze's DSAR query and Marcus's risk-assessment report both fast. |
 | **TTL** | **Longest applicable regulatory clock across all categories the deployment operates under** (per BR-1's longest-wins rule) — this table's retention floor is never shorter than any other table's, since an audit record about a since-deleted SessionEvent may still need to prove the deletion happened correctly. |

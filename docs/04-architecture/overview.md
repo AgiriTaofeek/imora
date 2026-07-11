@@ -56,7 +56,7 @@ This folder specifies structure and behavior; it deliberately stops short of:
 - Wire protocols and public API shape — `07-api/`.
 - The SecureFieldVault's encryption mechanism and other security implementation detail — `08-security/`.
 - Actual Compose/Kubernetes manifests and CI/CD — `09-infrastructure/`.
-- How the eight bounded contexts map to actual code organization (monorepo vs. polyrepo, folder layout) — `docs/04-architecture/repository-structure.md`, the one file left in this folder.
+- How the eight bounded contexts map to actual code organization (monorepo vs. polyrepo, folder layout) — [repository-structure.md](repository-structure.md), now written; monorepo with a single root license, per ADR [0003](../10-engineering/architecture-decisions/0003-monorepo-structure.md).
 
 ---
 

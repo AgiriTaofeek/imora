@@ -104,6 +104,12 @@ Every event in this section is an AccessAuditEvent variant per [domain-model.md]
 - **Key payload:** targetRecordId, holdId, timestamp.
 - **Consumers:** audit log — this is the event that makes a skipped deletion visible rather than silent, per BR-2.
 
+### ConfigurationChanged
+- **Producer:** query-api or workers, wherever the change is made.
+- **Trigger:** A RetentionPolicy edit, a field-classification change (per [pii-redaction.md](../08-security/pii-redaction.md)), or a role/permission grant (per [authorization.md](../08-security/authorization.md)) — the "security or privacy attribute changes" NIST 800-53 AU-2 requires logging, distinct from data access itself. Identified as a gap and closed in [audit-logging.md](../08-security/audit-logging.md).
+- **Key payload:** actorUserId, targetRecordType (RetentionPolicy | FieldClassification | UserRole), targetRecordId, oldValue, newValue, timestamp.
+- **Consumers:** audit log — without this, BR-1's retention guarantee depends on trusting an unaudited configuration, which defeats the point.
+
 ### ErasureRequestReceived / ErasureRequestResolved
 - **Producer:** workers (resolution), triggered by a request logged wherever DSAR intake happens (a `07-api/` or future workflow concern, not specified here).
 - **Trigger:** A data-subject erasure request enters BR-3's precedence evaluation.
@@ -154,4 +160,4 @@ Sources: [EventStorming Glossary & Cheat Sheet — DDD Crew](https://ddd-crew.gi
 
 ## What This Feeds Next
 
-`docs/06-data/event-schema.md` should turn each event above into a concrete field-level schema. `docs/07-api/webhooks.md` should decide which of these (likely AlertTriggered, RegressionDetected, EvidenceExportGenerated) are exposed externally. `docs/02-domain/terminology.md` remains the last file in this folder — a glossary of the terms this document and its predecessors have been using consistently (Session, AccessAuditEvent, LegalHold, etc.) without formally defining them in one place.
+`docs/06-data/event-schema.md` should turn each event above into a concrete field-level schema. `docs/07-api/webhooks.md` should decide which of these (likely AlertTriggered, RegressionDetected, EvidenceExportGenerated) are exposed externally. The terms this document and its predecessors have been using consistently (Session, AccessAuditEvent, LegalHold, etc.) are formally defined in one place in [glossary.md](../00-overview/glossary.md).

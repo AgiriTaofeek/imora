@@ -3,7 +3,501 @@ info:
   title: Imora API
   version: 0.1.0
   description: >
-    Draft OpenAPI specification for the Imora platform API.
-paths: {}
+    Formal specification for Imora's v1 REST API. Resource surface and design
+    rationale are documented in prose in ../07-api/rest-api.md and
+    ../07-api/webhooks.md — this file is the machine-readable formalization of
+    those decisions, not an independent source of design choices.
+servers:
+  - url: /v1
+    description: >
+      URL path versioning per rest-api.md; gateway routes on this prefix
+      without parsing headers.
+
+security:
+  - ApiTokenAuth: []
+
+paths:
+  /sessions/{sessionId}:
+    get:
+      summary: Retrieve a session's metadata and replay
+      description: >
+        Served by query-api's AuditedQueryHandler. Produces a SessionViewed
+        AccessAuditEvent as an inseparable part of this read, per
+        component-diagrams.md — including when called by dashboard, a script,
+        or a third-party integration.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sessions/{sessionId}/audit-trail:
+    get:
+      summary: Access-audit-trail for this session
+      description: Answers "who has viewed this session, and when" — stories M1, A1.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Paginated audit trail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessAuditEventPage'
+
+  /sessions/{sessionId}/unmask:
+    post:
+      summary: Escalate a masked field to unmasked (break-the-glass)
+      description: >
+        Requires a non-empty reason per BR-6. The API rejects a request
+        missing this field at the schema level, not just at the audit-logging
+        level, per rest-api.md.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnmaskRequest'
+      responses:
+        '200':
+          description: Field unmasked; FieldUnmasked AccessAuditEvent recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnmaskResponse'
+        '400':
+          description: Missing or empty reason field
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /data-subjects/{dataSubjectId}/sessions:
+    get:
+      summary: DSAR query surface
+      description: >
+        "All sessions and access history for this person" — story A1's core
+        scriptable endpoint, built to be answerable inside GDPR's one-month
+        deadline.
+      parameters:
+        - name: dataSubjectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Matching sessions and their access history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DsarResponse'
+            text/csv:
+              schema:
+                type: string
+            application/xml:
+              schema:
+                type: string
+
+  /legal-holds:
+    post:
+      summary: Apply a LegalHold
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LegalHoldCreate'
+      responses:
+        '201':
+          description: LegalHold applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegalHold'
+
+  /legal-holds/{holdId}:
+    delete:
+      summary: Lift a LegalHold
+      parameters:
+        - name: holdId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Hold lifted; normal retention resumes on next scheduled sweep
+
+  /retention-policies/{category}:
+    get:
+      summary: Read a RetentionPolicy
+      parameters:
+        - $ref: '#/components/parameters/DataCategory'
+      responses:
+        '200':
+          description: Current policy for this category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPolicy'
+    put:
+      summary: Update a RetentionPolicy
+      description: >
+        Produces a CONFIG_CHANGED AccessAuditEvent carrying oldValue/newValue,
+        per audit-logging.md — closing the gap where policy edits previously
+        went unaudited.
+      parameters:
+        - $ref: '#/components/parameters/DataCategory'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RetentionPolicyUpdate'
+      responses:
+        '200':
+          description: Policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionPolicy'
+
+  /evidence-exports:
+    post:
+      summary: Generate an EvidenceExport
+      description: Story J2. Produces a frozen, hash-verifiable copy per BR-4.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvidenceExportCreate'
+      responses:
+        '202':
+          description: Export generation started; EvidenceExportGenerated webhook fires on completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceExport'
+
+  /evidence-exports/{exportId}:
+    get:
+      summary: Retrieve an EvidenceExport's metadata and integrity hash
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Export metadata; content itself lives in object storage per storage.md
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceExport'
+
+  /erasure-requests:
+    post:
+      summary: Intake a data-subject erasure request
+      description: >
+        Enters BR-3's precedence evaluation (legal hold > overriding legal
+        obligation > retention clock > erasure). Response reports the
+        outcome and regulatory basis for any partial refusal.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErasureRequestCreate'
+      responses:
+        '202':
+          description: Erasure request accepted for evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErasureRequestResult'
+
 components:
-  schemas: {}
+  securitySchemes:
+    ApiTokenAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: >
+        Long-lived API token, distinct from interactive session tokens per
+        authentication.md. Resolves to the same actorUserId on every
+        downstream AccessAuditEvent.
+
+  parameters:
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DataCategory:
+      name: category
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [SessionEvent, ErrorEvent, PerformanceMetric, SecurityEvent, AccessAuditEvent]
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        type: string
+      description: Opaque pagination cursor, per rest-api.md — not offset-based.
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userOrAnonymousId:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+        releaseId:
+          type: string
+
+    AccessAuditEvent:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        sequenceNumber:
+          type: integer
+          format: int64
+        actorUserId:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [VIEW, EXPORT, UNMASK, DELETE, DELETION_SKIPPED, CONFIG_CHANGED]
+        targetRecordType:
+          type: string
+        targetRecordId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          nullable: true
+          description: Required non-null when action = UNMASK, per BR-6.
+        oldValue:
+          type: string
+          nullable: true
+        newValue:
+          type: string
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+
+    AccessAuditEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessAuditEvent'
+        nextCursor:
+          type: string
+          nullable: true
+
+    UnmaskRequest:
+      type: object
+      required: [fieldId, reason]
+      properties:
+        fieldId:
+          type: string
+        reason:
+          type: string
+          minLength: 1
+
+    UnmaskResponse:
+      type: object
+      properties:
+        fieldId:
+          type: string
+        value:
+          type: string
+        auditEventId:
+          type: string
+          format: uuid
+
+    DsarResponse:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Session'
+        accessHistory:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessAuditEvent'
+
+    LegalHoldCreate:
+      type: object
+      required: [scope, reason]
+      properties:
+        scope:
+          $ref: '#/components/schemas/LegalHoldScope'
+        reason:
+          type: string
+
+    LegalHold:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        appliedBy:
+          type: string
+          format: uuid
+        scope:
+          $ref: '#/components/schemas/LegalHoldScope'
+        reason:
+          type: string
+        appliedAt:
+          type: string
+          format: date-time
+        liftedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    LegalHoldScope:
+      type: object
+      description: >
+        Structured predicate, re-evaluated on every dictionary refresh cycle
+        per postgres-schema.md — not a fixed snapshot list.
+      properties:
+        type:
+          type: string
+          enum: [session_ids, data_subject, date_range, incident_reference]
+        value:
+          type: string
+        values:
+          type: array
+          items:
+            type: string
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+
+    RetentionPolicy:
+      type: object
+      properties:
+        dataCategory:
+          type: string
+        retentionPeriod:
+          type: string
+          description: ISO 8601 duration, e.g. P6Y for HIPAA's 6-year floor.
+        regulatoryBasis:
+          type: string
+
+    RetentionPolicyUpdate:
+      type: object
+      required: [retentionPeriod, regulatoryBasis]
+      properties:
+        retentionPeriod:
+          type: string
+        regulatoryBasis:
+          type: string
+
+    EvidenceExportCreate:
+      type: object
+      required: [incidentReference]
+      properties:
+        incidentReference:
+          type: string
+        sessionIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    EvidenceExport:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        incidentReference:
+          type: string
+        contentHash:
+          type: string
+          description: SHA-256, per BR-4 — independently verifiable integrity proof.
+        generatedAt:
+          type: string
+          format: date-time
+
+    ErasureRequestCreate:
+      type: object
+      required: [dataSubjectId]
+      properties:
+        dataSubjectId:
+          type: string
+
+    ErasureRequestResult:
+      type: object
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+          enum: [FULL_ERASURE, SELECTIVE_PURGE, DENIED]
+        regulatoryBasis:
+          type: string
+          nullable: true
+          description: Required whenever outcome != FULL_ERASURE, per BR-3.
+        fieldsRetained:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string

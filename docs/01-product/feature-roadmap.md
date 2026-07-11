@@ -1,6 +1,6 @@
 # Feature Roadmap
 
-> Status: Research-based, current as of July 2026. Sequences [prd.md](prd.md)'s MVP scope into three milestones, constrained by [licensing.md](licensing.md)'s rule that no wedge capability may be moved behind a commercial gate. This document assigns *what ships when and why*; `docs/12-milestones/milestone-1.md` through `milestone-3.md` are where each phase gets broken into trackable tasks once work starts.
+> Status: Research-based, current as of July 2026. Sequences [prd.md](prd.md)'s MVP scope into three milestones, constrained by [licensing.md](licensing.md)'s rule that no wedge capability may be moved behind a commercial gate. This document assigns *what ships when and why*; task-level breakdown for each milestone belongs in a project-management tool, not a separate docs file.
 
 No calendar dates appear in this document. Committing to quarters without a real team size and velocity to base them on would be fabricated precision — per [user-personas.md](user-personas.md), Priya's team size ranges from a 2–3 person minimum-viable platform team to a 10–30 person mid-stage fintech platform group, and that range alone changes any date estimate by multiples. Sequencing and exit criteria are fixed; timing is not.
 
@@ -67,4 +67,4 @@ No calendar dates appear in this document. Committing to quarters without a real
 | 2 — The Wedge, Complete | Why does this replace, not supplement, a compliance workflow? | The audit-trail foundation from Milestone 1 |
 | 3 — Sustainable and Scalable | How does this stay funded without breaking the promise in [vision.md](../00-overview/vision.md)? | A monetization surface that doesn't touch Milestones 1–2 |
 
-This table, and the exit criteria above, are what `docs/12-milestones/milestone-1.md` through `milestone-3.md` should expand into task-level detail next.
+This table, and the exit criteria above, are the source of truth for milestone scope — expand them into sprint/task-level tracking in a project-management tool as work starts, rather than a parallel docs file that will drift out of sync with it.

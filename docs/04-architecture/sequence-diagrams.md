@@ -1,12 +1,37 @@
 # Sequence Diagrams
 
-> Status: Traces four flows step-by-step through the components defined in [container-diagrams.md](container-diagrams.md) and [component-diagrams.md](component-diagrams.md), applying the business rules from [business-rules.md](../02-domain/business-rules.md) concretely rather than restating them abstractly. Represented as numbered steps rather than rendered diagrams, consistent with the rest of this doc set.
+> Status: Traces four flows step-by-step through the components defined in [container-diagrams.md](container-diagrams.md) and [component-diagrams.md](component-diagrams.md), applying the business rules from [business-rules.md](../02-domain/business-rules.md) concretely rather than restating them abstractly. Each flow is rendered as a Mermaid sequence diagram, with the numbered prose immediately below it as the citation-bearing detail the diagram can't carry — read the diagram for shape, the prose for why.
 
 ---
 
 ## Flow A — Session Capture (Parity)
 
 The foundational flow; every other sequence below depends on data having entered the system this way.
+
+```mermaid
+sequenceDiagram
+  participant U as Data Subject
+  participant SDK as browser-sdk
+  participant GW as gateway
+  participant ING as ingestion
+  participant CH as ClickHouse
+  participant PG as PostgreSQL
+  participant AE as alert-engine
+
+  U->>SDK: Browses instrumented app
+  SDK->>SDK: Two-tier masking decision (BR-7)
+  SDK->>GW: SessionEventCaptured, PerformanceMetricRecorded
+  GW->>GW: Authenticate project/API key
+  GW->>ING: Forward
+  ING->>CH: Write SessionEvent rows
+  ING->>PG: Write Session/Release summary
+  opt Exception occurred
+    SDK->>GW: ErrorEventCaptured
+    GW->>ING: Forward
+    ING->>CH: Write ErrorEvent
+    AE->>CH: Async pickup for ErrorGrouped (C2)
+  end
+```
 
 1. Data Subject browses the organization's instrumented web application.
 2. `browser-sdk` observes DOM state via the rrweb-style capture pattern (full snapshot + incremental mutations, per [domain-model.md](../02-domain/domain-model.md)).
@@ -22,6 +47,22 @@ The foundational flow; every other sequence below depends on data having entered
 
 Adaeze's one-month clock from [user-personas.md](../01-product/user-personas.md) starts the moment this flow needs to run.
 
+```mermaid
+sequenceDiagram
+  actor A as Adaeze
+  participant GW as gateway
+  participant QA as query-api
+  participant CH as ClickHouse
+
+  A->>GW: Authenticate (SSO if Enterprise)
+  GW->>QA: Forward, actor identity attached
+  A->>QA: "All sessions + access history for subject X"
+  QA->>CH: SessionQueryHandler resolves matching sessions
+  QA->>CH: AccessAuditWriter: SessionViewed (one per record)
+  QA->>CH: AuditQueryHandler: access-history lookup (itself logged)
+  QA-->>A: Combined result, CSV/JSON/XML per GDPR format requirement
+```
+
 1. Adaeze authenticates via `gateway` (SSO if Enterprise tier, per [system-context.md](system-context.md)).
 2. `gateway` attaches actor identity (userId, source IP) to the request context, forwards to `query-api`.
 3. Adaeze issues a query — "all sessions and access history for data subject X" — via `dashboard`, which calls `query-api` directly with no translation of its own (per [bounded-contexts.md](../02-domain/bounded-contexts.md)'s Conformist relationship).
@@ -34,6 +75,34 @@ Adaeze's one-month clock from [user-personas.md](../01-product/user-personas.md)
 
 ## Flow C — Retention Sweep Hitting an Active Legal Hold (Wedge, BR-1/BR-2)
 
+```mermaid
+sequenceDiagram
+  participant RSS as RetentionSweepScheduler
+  participant LHC as LegalHoldChecker
+  participant Redis
+  participant SPE as SelectivePurgeExecutor
+  participant DE as DeletionExecutor
+  participant CH as ClickHouse
+
+  RSS->>RSS: Identify candidates past RetentionPolicy expiry
+  loop Per candidate, one at a time
+    RSS->>LHC: Check before destroy
+    LHC->>Redis: Active-hold cache lookup
+    alt Cache hit — hold applies
+      LHC->>CH: log DeletionSkippedDueToHold
+      Note over LHC: Re-evaluated next sweep, not retried now
+    else Cache miss
+      LHC->>SPE: Check overriding legal obligation
+      alt Obligation applies
+        SPE->>DE: Field-level anonymize/retain plan
+      else No obligation
+        SPE->>DE: Full deletion
+      end
+      DE->>CH: Execute + log RecordDeleted (regulatory basis)
+    end
+  end
+```
+
 1. `RetentionSweepScheduler` triggers on schedule for a given data category (its own clock, per BR-1).
 2. The scheduler identifies candidate records past their RetentionPolicy expiry.
 3. For each candidate — one at a time, not as a pre-checked batch — `LegalHoldChecker` queries the Redis active-hold cache, kept current by invalidation on every `LegalHoldApplied`/`LegalHoldLifted` event.
@@ -45,6 +114,26 @@ Adaeze's one-month clock from [user-personas.md](../01-product/user-personas.md)
 ---
 
 ## Flow D — Evidence Export Generation (Wedge, Story J2/BR-4)
+
+```mermaid
+sequenceDiagram
+  actor P as Jon / Marcus / Adaeze
+  participant GW as gateway
+  participant W as workers
+  participant EEG as EvidenceExportGenerator
+  participant MinIO
+  participant PG as PostgreSQL
+
+  P->>GW: Request export for incident
+  GW->>W: Route, actor identity attached
+  W->>EEG: Resolve incident scope
+  EEG->>EEG: Freeze copy of in-scope records (not live references)
+  EEG->>MinIO: Write frozen blob (Object Lock, Compliance mode)
+  EEG->>PG: Write metadata (exportId, contentHash, generatedAt)
+  W->>PG: log RecordExported
+  W-->>P: Export delivered
+  Note over MinIO,PG: Immune to later retention purge or erasure — BR-4
+```
 
 1. Jon, Marcus, or Adaeze requests an evidence export for a specific incident, via `dashboard` → `gateway`.
 2. `gateway` attaches actor identity, routes to `workers` (export generation is a `workers` responsibility, not `query-api`'s, per [container-diagrams.md](container-diagrams.md)).

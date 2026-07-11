@@ -90,18 +90,19 @@ Every event below carries this envelope in addition to its own fields:
 
 ## Access and Audit Events
 
-All five share one base shape — a discriminated union on `action`, not five separately-structured events, since [domain-model.md](../02-domain/domain-model.md) defines them as AccessAuditEvent variants:
+All six share one base shape — a discriminated union on `action`, not six separately-structured events, since [domain-model.md](../02-domain/domain-model.md) defines them as AccessAuditEvent variants:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `actorUserId` | UUID | Yes | From `gateway`'s RequestContext, per [component-diagrams.md](../04-architecture/component-diagrams.md). |
-| `action` | enum: VIEW, EXPORT, UNMASK, DELETE, DELETION_SKIPPED | Yes | |
-| `targetRecordType` / `targetRecordId` | string / UUID | Yes | Polymorphic, per [domain-model.md](../02-domain/domain-model.md)'s relationship table. |
+| `action` | enum: VIEW, EXPORT, UNMASK, DELETE, DELETION_SKIPPED, CONFIG_CHANGED | Yes | `CONFIG_CHANGED` added per [audit-logging.md](../08-security/audit-logging.md) — closes the gap where policy/role/classification changes went unaudited. |
+| `targetRecordType` / `targetRecordId` | string / UUID | Yes | Polymorphic, per [domain-model.md](../02-domain/domain-model.md)'s relationship table. For `CONFIG_CHANGED`, `targetRecordType` is one of RetentionPolicy, FieldClassification, or UserRole. |
 | `sourceIp` / `sourceDevice` | string | Yes | |
 | `sequenceNumber` | monotonic integer | Yes | Per the event-sourcing pattern in [domain-model.md](../02-domain/domain-model.md) — enables gap detection, which itself matters for a 7-year audit trail. |
 | `reason` | string | Conditionally required | **Required and non-empty when `action = UNMASK`**, per BR-6; absent otherwise. |
 | `holdId` | UUID | Conditionally required | Present only when `action = DELETION_SKIPPED`, per [event-catalog.md](../02-domain/event-catalog.md)'s DeletionSkippedDueToHold. |
 | `regulatoryBasis` | string | No | Present when a DELETE was governed by a specific RetentionPolicy clock. |
+| `oldValue` / `newValue` | string (JSON) | Conditionally required | **Required when `action = CONFIG_CHANGED`** — the change itself, not just the fact that one occurred, per [audit-logging.md](../08-security/audit-logging.md). |
 
 ---
 

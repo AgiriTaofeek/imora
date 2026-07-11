@@ -1,9 +1,20 @@
 # Imora
 
-> Status: Draft
+> Status: Planning/documentation phase — no product code yet. Everything below describes what is designed and decided, not what is built.
 
-Imora is an observability platform for error tracking, performance monitoring, session replay, and security monitoring. This README is the entry point to the project's documentation set in `docs/`.
+Imora is a **self-hosted alternative to Sentry, Datadog RUM, LogRocket, and FullStory**, built for regulated industries (banks, insurers, hospitals, government) that can't send customer session data to a third party. It aims to match those tools on everyday debugging — error tracking, session replay, performance monitoring — and win on three capabilities none of them ship: an audit trail of who viewed a customer's session, retention mapped to actual regulatory clocks, and one-click evidence export for auditors.
 
-## Overview
+## Where to Start
 
-_TBD_
+**[docs/README.md](docs/README.md)** — start with its "Start Here" section, which includes a 10-minute reading path. The full documentation set covers vision through infrastructure across 12 numbered folders, with load-bearing decisions recorded as ADRs in [docs/10-engineering/architecture-decisions/](docs/10-engineering/architecture-decisions/).
+
+## Repository Layout
+
+- [docs/](docs/) — the complete planning/design documentation set (also reusable as a documentation framework for other projects; see its README).
+- [diagrams/](diagrams/) — architecture diagrams are maintained inline as Mermaid inside `docs/04-architecture/`; this folder's README explains why.
+- [ROADMAP.md](ROADMAP.md) → [docs/01-product/feature-roadmap.md](docs/01-product/feature-roadmap.md) — three milestones, no fabricated dates.
+- [CHANGELOG.md](CHANGELOG.md) / [CONTRIBUTING.md](CONTRIBUTING.md) — placeholders until there are releases and code to contribute to.
+
+## License
+
+Planned: AGPLv3 for the entire product, including all compliance capabilities — no feature-gated enterprise edition. Rationale in [docs/01-product/licensing.md](docs/01-product/licensing.md) and [ADR 0001](docs/10-engineering/architecture-decisions/0001-agplv3-licensing.md).

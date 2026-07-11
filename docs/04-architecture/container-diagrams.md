@@ -4,6 +4,50 @@
 
 ---
 
+## Diagram — Single-Machine Profile
+
+```mermaid
+C4Container
+  title Container Diagram — Imora (single-machine profile)
+
+  Person(user, "Engineer / Compliance Officer")
+
+  Container_Boundary(imora, "Imora") {
+    Container(sdk, "browser-sdk", "JS/TS library", "Capture-time masking, rrweb serialization")
+    Container(gateway, "gateway", "Service", "AuthN/authZ, rate limiting, actor context")
+    Container(ingestion, "ingestion", "Service", "Write path")
+    Container(queryapi, "query-api", "Service", "Read path + AccessAuditEvent generation")
+    Container(alertengine, "alert-engine", "Service", "Grouping, regression detection")
+    Container(workers, "workers", "Scheduled + on-demand jobs", "Retention, legal hold, evidence export")
+    Container(notif, "notification-service", "Service", "Alert delivery")
+    Container(dashboard, "dashboard", "Static SPA", "Presentation only")
+
+    ContainerDb(clickhouse, "ClickHouse", "Column store", "SessionEvent, ErrorEvent, PerformanceMetric, SecurityEvent, AccessAuditEvent")
+    ContainerDb(postgres, "PostgreSQL", "Relational store", "Session, Release, ErrorGroup, RetentionPolicy, LegalHold, EvidenceExport metadata")
+    ContainerDb(redis, "Redis", "Cache", "Active-hold lookup, rate limiting")
+    ContainerDb(minio, "MinIO", "Object storage", "EvidenceExport blobs, Object Lock")
+  }
+
+  Rel(sdk, gateway, "Masked events")
+  Rel(gateway, ingestion, "Forwards writes")
+  Rel(gateway, queryapi, "Forwards reads")
+  Rel(ingestion, clickhouse, "Writes")
+  Rel(ingestion, postgres, "Writes Session/Release")
+  Rel(queryapi, clickhouse, "Reads, writes AccessAuditEvent")
+  Rel(queryapi, postgres, "Reads")
+  Rel(alertengine, clickhouse, "Reads metrics")
+  Rel(alertengine, notif, "Emits AlertTriggered")
+  Rel(workers, redis, "Checks hold cache")
+  Rel(workers, postgres, "Reads/writes")
+  Rel(workers, minio, "Writes export blobs")
+  Rel(dashboard, queryapi, "Calls exclusively")
+  Rel(user, dashboard, "Uses")
+```
+
+No message queue in this profile — `ingestion` writes directly to ClickHouse, per the single-machine simplification below.
+
+---
+
 ## Data Stores
 
 The write/read separation and column-store choice from [bounded-contexts.md](../02-domain/bounded-contexts.md)'s modeling approach implies a specific storage split, matching the pattern of the closest architectural comparator (Uptrace, an open-source APM/observability platform whose entire self-hosted footprint is one binary plus ClickHouse, PostgreSQL, and Redis — deliberately no Kafka at small scale):
