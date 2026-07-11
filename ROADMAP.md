@@ -2,7 +2,7 @@
 
 > Status: Draft
 
-High-level roadmap of upcoming milestones and features. See [docs/design-doc.md](docs/design-doc.md)'s "MVP" and "Beyond MVP" sections for detail.
+High-level roadmap of upcoming milestones and features. See `docs/01-product/feature-roadmap.md` for detail.
 
 ## Overview
 
