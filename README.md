@@ -6,15 +6,15 @@ Imora is a **self-hosted alternative to Sentry, Datadog RUM, LogRocket, and Full
 
 ## Where to Start
 
-**[docs/README.md](docs/README.md)** — start with its "Start Here" section, which includes a 10-minute reading path. The full documentation set covers vision through infrastructure across 13 numbered folders, ordered to follow the actual planning flow (vision → problem → PRD → architecture & design → roadmap → feature specs → implementation → testing/rollout/observe), with load-bearing decisions recorded as ADRs in [docs/11-engineering/architecture-decisions/](docs/11-engineering/architecture-decisions/).
+**[research/README.md](research/README.md)** — start with its "Start Here" section, which includes a 10-minute reading path. The full documentation set covers vision through infrastructure across 13 numbered folders, ordered to follow the actual planning flow (vision → problem → PRD → architecture & design → roadmap → feature specs → implementation → testing/rollout/observe), with load-bearing decisions recorded as ADRs in [research/11-engineering/architecture-decisions/](research/11-engineering/architecture-decisions/).
 
 ## Repository Layout
 
-- [docs/](docs/) — the complete planning/design documentation set (also reusable as a documentation framework for other projects; see its README).
-- [diagrams/](diagrams/) — architecture diagrams are maintained inline as Mermaid inside `docs/03-architecture/`; this folder's README explains why.
-- [ROADMAP.md](ROADMAP.md) → [docs/08-roadmap/feature-roadmap.md](docs/08-roadmap/feature-roadmap.md) — three milestones, no fabricated dates.
+- [research/](research/) — the complete planning/design documentation set (also reusable as a documentation framework for other projects; see its README).
+- [diagrams/](diagrams/) — architecture diagrams are maintained inline as Mermaid inside `research/03-architecture/`; this folder's README explains why.
+- [ROADMAP.md](ROADMAP.md) → [research/08-roadmap/feature-roadmap.md](research/08-roadmap/feature-roadmap.md) — three milestones, no fabricated dates.
 - [CHANGELOG.md](CHANGELOG.md) / [CONTRIBUTING.md](CONTRIBUTING.md) — placeholders until there are releases and code to contribute to.
 
 ## License
 
-Planned: AGPLv3 for the entire product, including all compliance capabilities — no feature-gated enterprise edition. Rationale in the [Licensing section](docs/01-product/README.md#licensing) of `docs/01-product/README.md` and [ADR 0001](docs/11-engineering/architecture-decisions/0001-agplv3-licensing.md).
+Planned: AGPLv3 for the entire product, including all compliance capabilities — no feature-gated enterprise edition. Rationale in the [Licensing section](research/01-product/README.md#licensing) of `research/01-product/README.md` and [ADR 0001](research/11-engineering/architecture-decisions/0001-agplv3-licensing.md).
