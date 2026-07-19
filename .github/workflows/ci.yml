@@ -1,0 +1,40 @@
+pname: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Same install command as docs/setup-guide.md §3 — one source of truth for how
+      # golangci-lint gets installed, locally and in CI. Installed to /usr/local/bin (already
+      # on PATH on GitHub-hosted runners) rather than $(go env GOPATH)/bin, which setup-go
+      # doesn't guarantee is on PATH.
+      - name: Install golangci-lint
+        run: curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b /usr/local/bin v2.12.2
+
+      - name: Install Task
+        run: sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+      - run: pnpm install --frozen-lockfile
+
+      # Mirrors what a contributor runs locally before opening a PR — see docs/setup-guide.md
+      # §10 and the no-ai-slop Senior Engineer Checklist referenced in the PR template.
+      - run: task check
