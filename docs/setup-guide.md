@@ -28,6 +28,8 @@ If you stop partway through and come back later, the fastest way to reorient is:
 | pnpm | **11+ required** | `pnpm --version` (install via `corepack enable` if missing — ships with Node 20+) |
 | Docker + Docker Compose | current | `docker compose version` |
 | golangci-lint | v2.x | installed in step 3 |
+| [go-task](https://taskfile.dev) | v3.x | `task --version` — optional until §10, which uses it |
+| [air](https://github.com/air-verse/air) | v1.x | `air -v` — optional, only needed for Go hot-reload (§10) |
 
 **Node 22+ and pnpm 11+ are hard requirements, not "latest is nice to have."** pnpm 11 itself requires Node 22+ to run at all — and separately, pnpm 11 changed two defaults worth knowing about *before* you hit them rather than mid-install: postinstall/build scripts now error unless explicitly allowlisted (`allowBuilds` in `pnpm-workspace.yaml`), and by default it refuses to install any package version published less than 24 hours ago (`minimumReleaseAge`, a supply-chain guard — see the note in §4 for what to do when this blocks something real, which it will, on a genuinely fresh install).
 
@@ -725,6 +727,42 @@ This is the "did the whole journey actually work, end to end" pass — not a new
 - [ ] `pnpm lint` (`biome check .`) — clean on the scaffolded packages
 - [ ] `pnpm test` / `go test ./...` — both pass (trivially, on empty packages)
 - [ ] Manually diff one generated Go struct against its JSON Schema source and the Zod schema's inferred TS type — confirm all three actually agree, per §5's note
+
+### One Command for the Rest of This List
+
+Go and TypeScript stay two separate, independent toolchains throughout this guide — deliberately (§3–§4). But once both sides exist, re-typing five separate commands every time you want to know "is everything still green" gets old fast, and it's easy to skip one and not notice. `Taskfile.yml` at the repo root is a thin wrapper that does nothing except call the same commands above, in order, for both languages — it doesn't replace `go build`/`golangci-lint` or `pnpm`/`turbo`/Biome, and it doesn't need its own config beyond the one file:
+
+```bash
+task build   # go build ./...        + pnpm build
+task test    # go test ./...         + pnpm test
+task lint    # golangci-lint run ./... + pnpm lint
+task vet     # go vet ./...
+task generate # go generate ./...
+task check   # lint, then test, then build — the closest thing this repo has to a CI script
+```
+
+`task --list` shows the same summary. Worth running each underlying command by hand once, per this section's checklist, so you actually see what each step checks — `task check` is the shortcut for every time after that, not a replacement for understanding what it's running.
+
+### Live Reload During Development
+
+`task check` is for "is everything still correct" — this is for the different, everyday question of "let me see my change without restarting things by hand."
+
+**TypeScript (`dashboard`)** already has this — `dashboard/package.json`'s `"dev": "vite dev --port 3000"` gives full Vite HMR. Run it directly:
+
+```bash
+task dev:ts   # == pnpm --filter dashboard dev
+```
+
+`pnpm dev` (root) works too, via the `dev` task already declared in `turbo.json` — it runs every package's `dev` script in parallel. Since only `dashboard` currently has one, Turborepo just skips the rest silently (same documented behavior as the `lint` no-op in §4 — some packages matching, others not, isn't an error). The `browser-sdk` packages (`core`/`react`/`vue`/`angular`) don't have watch-mode builds yet — only a one-shot `tsup` — so changes there still need a manual `pnpm build` until/unless that's added.
+
+**Go** has no dev-server concept of its own — hot-reload here means "rebuild and restart the binary on save," which [air](https://github.com/air-verse/air) does. The repo has one shared `.air.toml` at the root rather than one per service, since air only builds a single binary per config and there are six `services/*/cmd` entrypoints — the config picks which one via a `SERVICE` env var, which air expands (it runs `build.cmd` through a shell):
+
+```bash
+task dev:go SERVICE=gateway     # defaults to gateway if SERVICE is omitted
+task dev:go SERVICE=query-api
+```
+
+Only `gateway` and `query-api` have real handlers to reload right now (§6) — the other four services are still empty stubs, but the same config covers them the moment they have logic worth reloading on. Air's build output goes to `./tmp/`, which is gitignored — never hand-edit anything under it.
 
 ---
 

@@ -1,0 +1,55 @@
+version: '3'
+
+# Thin wrapper only — the Go and TypeScript toolchains stay independent and unchanged
+# (go.mod / golangci-lint on one side, pnpm-workspace.yaml / turbo.json / biome.json on the
+# other). This just gives both a single, memorable entry point. See docs/setup-guide.md §10.
+
+tasks:
+  build:
+    desc: Build every Go service and every TypeScript package
+    cmds:
+      - go build ./...
+      - pnpm build
+
+  test:
+    desc: Run the Go test suite and the TypeScript test suite
+    cmds:
+      - go test ./...
+      - pnpm test
+
+  lint:
+    desc: Lint Go (golangci-lint) and TypeScript (Biome)
+    cmds:
+      - golangci-lint run ./...
+      - pnpm lint
+
+  vet:
+    desc: go vet only — fast correctness pass, no style checks
+    cmds:
+      - go vet ./...
+
+  generate:
+    desc: Regenerate domain-types (Go) from the shared JSON Schemas
+    cmds:
+      - go generate ./...
+
+  dev:go:
+    desc: 'Hot-reload one Go service via air (usage: task dev:go SERVICE=gateway)'
+    vars:
+      SERVICE: '{{.SERVICE | default "gateway"}}'
+    env:
+      SERVICE: '{{.SERVICE}}'
+    cmds:
+      - air -c .air.toml
+
+  dev:ts:
+    desc: Start the dashboard dev server (Vite, HMR)
+    cmds:
+      - pnpm --filter dashboard dev
+
+  check:
+    desc: Everything CI should run — lint, then test, then build, both languages
+    cmds:
+      - task: lint
+      - task: test
+      - task: build

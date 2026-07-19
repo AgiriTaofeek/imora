@@ -1,0 +1,23 @@
+# Shared hot-reload config for every services/*/cmd binary — which one to build and run is
+# picked with a SERVICE env var, since air itself only builds one binary per config. See
+# docs/setup-guide.md's "Live Reload During Development" note.
+#
+# Usage: SERVICE=gateway air -c .air.toml   (or `task dev:go SERVICE=gateway`)
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/bin/$SERVICE ./services/$SERVICE/cmd"
+entrypoint = ["./tmp/bin/$SERVICE"]
+include_ext = ["go"]
+exclude_dir = ["tmp", "dashboard", "sdk", "node_modules", ".git", "deploy", "diagrams", "docs", "research"]
+delay = 200
+# Send an interrupt (not SIGKILL) on rebuild, and give it time to actually run — every service's
+# cmd/main.go implements graceful shutdown via signal.NotifyContext + srv.Shutdown (25s timeout,
+# see docs/coding-standards.md §8). Without these two lines, air's defaults (send_interrupt =
+# false, kill_delay = 0s) force-kill the process on every reload, so that path never runs locally.
+send_interrupt = true
+kill_delay = "500ms"
+
+[log]
+time = false
