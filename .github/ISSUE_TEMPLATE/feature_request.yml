@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose something Imora doesn't do yet
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: The gap or friction — not the solution yet. See docs/prd.md and docs/user-stories.md for the kind of problem framing this project already uses.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Optional — if you have one. Note that architecture/design decisions are made deliberately (see research/11-engineering/architecture-decisions/), not assumed from a feature request alone.
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
