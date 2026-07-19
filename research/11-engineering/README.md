@@ -20,8 +20,9 @@ DORA's research on this is specific, not a general preference: elite performers 
 
 ### What's Deliberately Not Modeled Here
 
-- PR review requirements/approval counts — a team-process decision, not an architectural one.
 - Commit message conventions — downstream tooling choice (e.g., whether commit messages drive changelog automation from [Release Process](README.md#release-process)).
+
+PR review requirements, branch naming, and the concrete step-by-step workflow were left open here deliberately (team-process, not architecture) — they're now decided in [`CONTRIBUTING.md`](../../CONTRIBUTING.md), not duplicated here.
 
 ---
 
