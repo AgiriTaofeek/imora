@@ -1,6 +1,6 @@
 # 0009. Project Key format for SDK/ingest authentication
 
-> Status: Proposed — not yet decided. Context captured so the tradeoff isn't lost; the Decision section is deliberately empty until this is actually resolved.
+> Status: Accepted.
 
 ## Context
 
@@ -13,12 +13,17 @@ Two ways to construct and validate it:
 
 ## Decision
 
-_Not yet made._
+**Opaque random string, validated via a Redis lookup** — `{keyId} → {projectId, active, createdAt}`. No signature, no self-verification, no embedded "secret" component. Structurally the same shape as Sentry's DSN (public key + project ID, server-side lookup), not a signed-token scheme.
 
 ## Alternatives Considered
 
-_To be filled in once a decision is made._
+- **Self-verifying signed token**: rejected, for the same core reason JWT was rejected for sessions in [ADR 0008](0008-gateway-session-model.md) — revocability. A leaked Project Key (expected; it's exposed by design, not by accident) needs to stop working immediately once revoked, not remain valid until a denylist entry is added or the token naturally expires. A signed token without a lookup has no row to delete; a signed token with a revocation-check lookup has paid the complexity of signing/verification for none of the "no round-trip" benefit it was chosen for.
+- **A "secret key" component alongside the public identifier** (Sentry's original DSN design): rejected explicitly. Sentry itself deprecated this — a secret shipped inside public client-side JavaScript was never actually secret, and keeping it implied a protection guarantee the design couldn't deliver. Not repeating a mistake the closest comparable product already made and walked back.
+- **Precedent**: Sentry's DSN (public key + project ID, server-side lookup, no signature) and Datadog RUM's "client token" (a distinct credential type from their general API key, specifically because API keys can't safely be exposed client-side) — both real, production-scale systems in this exact category, both converged on the same shape this ADR adopts.
 
 ## Consequences
 
-_Depends on the decision above — also determines what [0010](0010-gateway-cache-failure-mode.md) is even about, since a signed-token approach may not depend on a cache being up at all._
+- Consistent with ADR 0008's guiding value for this category of decision: revocability outranks avoiding a lookup, applied the same way to both credential types rather than switching philosophy between them.
+- The Redis lookup on the write path needs to be genuinely cheap (single key fetch, no joins, cacheable) since this is the highest-volume path in the system — this is a real performance requirement on the implementation, not just a design preference.
+- Makes [ADR 0010](0010-gateway-cache-failure-mode.md) (cache-outage failure mode) a fully live, necessary decision rather than one that might have partly dissolved under the signed-token alternative — tackle that next.
+- Project Key is its own distinct type, never reused from or convertible to any credential with broader privilege (no read access, no admin capability) — matching Datadog's client-token precedent.

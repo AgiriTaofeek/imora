@@ -40,15 +40,17 @@ _TBD — needs real sequence diagrams (Mermaid, matching the convention already 
 Each of these is a real, contested, not-yet-resolved decision — tracked as its own ADR rather than decided inline here, since each is independently consequential:
 
 - **Session model for Domain B**: server-side session store, Redis-backed, opaque `HttpOnly`/`Secure`/`SameSite=Strict` cookie — [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md), _Accepted_.
-- **Project Key format** (opaque + lookup vs. self-verifying signed token) — [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md), _Proposed, undecided_.
+- **Project Key format**: opaque random string, Redis-lookup validation — no signature, no embedded secret component — [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md), _Accepted_.
 - **Cache-outage failure mode** for Project Key validation (fail open vs. fail closed) — [ADR 0010](../../research/11-engineering/architecture-decisions/0010-gateway-cache-failure-mode.md), _Proposed, undecided_.
 
 ## Data Model
 
 **Session record** (Redis, per [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md)) — first cut: `{sessionId, userId, role, createdAt, expiresAt, lastSeenAt}`, keyed by `sessionId` (the value inside the signed cookie). TTL matches `expiresAt`, refreshed on activity up to some max lifetime — exact values still open (not consequential enough to need its own ADR, revisit when actually implementing).
 
+**Project Key record** (Redis, per [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md)) — first cut: `{keyId} → {projectId, active, createdAt}`, keyed by `keyId` (the opaque string embedded in the customer's `init()` call). The Redis entry is a cache in front of the real source of truth in Postgres (`Project` row) — cache-population/invalidation-on-revoke mechanics still open, see Failure Modes below.
+
 _Still TBD:_
-- _`Project` (key, owner, created-at, active/revoked state — not yet specified anywhere in the domain model)_
+- _`Project` itself (owner, created-at, active/revoked state, relationship to its Project Key(s) — can a project have more than one key, e.g. for rotation? not yet specified anywhere in the domain model)_
 
 ## API Surface
 
