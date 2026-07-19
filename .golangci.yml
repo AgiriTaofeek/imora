@@ -1,0 +1,19 @@
+# .golangci.yml — repo root
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # errcheck, govet, staticcheck, unused, ineffassign
+  enable:
+    - bodyclose
+    - contextcheck
+    - containedctx
+    - wrapcheck
+    - gosec
+  settings:
+    wrapcheck:
+      ignoreSigs:
+        - context.Canceled
+        - context.DeadlineExceeded

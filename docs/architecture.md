@@ -261,4 +261,4 @@ These are implementation choices downstream of the design above, not gaps in the
 
 ## What This Feeds
 
-Implementation. This is the last "planning" document in the chain — `prd.md` → `user-stories.md` → `architecture.md` → code.
+[`setup-guide.md`](setup-guide.md) — the actual repository bootstrap, step by step. This is the last "planning" document in the chain — `prd.md` → `user-stories.md` → `architecture.md` → `coding-standards.md`/`design-system.md` → `setup-guide.md` → code.

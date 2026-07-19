@@ -1,0 +1,31 @@
+{
+  "name": "@imora/angular",
+  "version": "0.1.0",
+  "description": "Angular lifecycle adapter around @imora/core. See docs/design-system.md §11.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "@imora/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@angular/core": ">=17"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "vitest": "^4.1.10"
+  }
+}

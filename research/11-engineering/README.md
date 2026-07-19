@@ -47,7 +47,7 @@ This does mean two languages across the codebase, not one — accepted deliberat
 
 - **Go: `gofmt` plus `golangci-lint`, both non-negotiable, both CI-gated.** `gofmt` isn't a style preference — it's what the Go toolchain already enforces by convention, and a diff that isn't `gofmt`-clean fails the build, not just code review. `golangci-lint` runs the linter set every backend service shares from one root config (not per-service configs that drift): `errcheck` (every returned error is either handled or explicitly discarded with `_ =`, never silently dropped), `govet`, `staticcheck`, `unused`, `ineffassign` (the default set), plus `bodyclose` (every `http.Response.Body` is closed — a real leak source in long-running services), `contextcheck`/`containedctx` (catches a context stored in a struct field instead of threaded as the first parameter, and a context passed to a function that doesn't inherit from a request's context — both break cancellation propagation silently), and `wrapcheck` (an error returned from an external package must be wrapped with call-site context before it crosses a service boundary, per the Error Handling section below).
 - Go baseline: **1.24+**, tracking current stable rather than pinning to an old minor — this repository has no legacy-compatibility constraint forcing an older baseline, so there's no reason to forgo `go fix`-modernized idioms, the stabilized `testing/synctest` package (useful directly against [Testing](README.md#testing)'s concurrent-flow assertions), or the per-iteration loop variable semantics Go 1.22 made the language default (a `for _, h := range holds { go check(h) }` closure capturing the wrong iteration's value was a real, common bug class before 1.22 — it's structurally gone now, not just discouraged by convention).
-- TypeScript: ESLint + Prettier, configured once in `packages/` and inherited by `browser-sdk` and `dashboard` rather than duplicated per package.
+- TypeScript: **[Biome](https://biomejs.dev)**, one tool for both linting and formatting, configured once via a root `biome.json` and inherited by `browser-sdk` and `dashboard` via nested configs that `extends: "//"` (Biome's monorepo-inheritance syntax) rather than duplicated per package. Chosen over an ESLint+Prettier pair for the same reason `sqlc` was chosen over an ORM and `tsup` over a hand-rolled bundler config elsewhere in this document: a single, faster, less-configuration tool doing the job of two, with no risk of the linter and formatter disagreeing with each other.
 
 ### Naming Conventions
 
@@ -115,29 +115,30 @@ Sources: [Graceful Shutdown in Go: Practical Patterns — VictoriaMetrics](https
 
 ### HTTP Handlers and Middleware
 
-`gateway`'s entire responsibility (authN/authZ, rate limiting, actor-context stamping, per [Bounded Contexts](../02-domain/README.md#bounded-contexts)) is expressed as a middleware chain over the standard library's `http.Handler` — **no web framework** (Gin/Echo/Fiber), consistent with this document's broader preference for standard-library-first, framework-only-when-the-standard-library-genuinely-can't (per [Structured Logging](README.md#structured-logging)'s identical reasoning for `log/slog` over a third-party logger).
+`gateway`'s entire responsibility (authN/authZ, rate limiting, actor-context stamping, per [Bounded Contexts](../02-domain/README.md#bounded-contexts)) and `query-api`'s REST surface ([REST API](../06-api/README.md#rest-api)) are both built on **[chi](https://github.com/go-chi/chi)**, not Gin/Echo/Fiber. This isn't a reversal of this document's standard-library-first bias — chi's own design goal is 100% compatibility with `net/http`: a chi middleware is a plain `func(http.Handler) http.Handler`, a chi handler is a plain `http.HandlerFunc`, and `chi.Router` itself satisfies `http.Handler`. Nothing about a chi-based service looks different to the rest of the Go ecosystem than a hand-rolled one — chi adds URL-parameter routing and middleware composition on top of the stdlib types this document already committed to, rather than replacing them with a framework-specific context or handler signature the way Gin's `*gin.Context` or Echo's `echo.Context` would. The reasoning here is the same as [Structured Logging](README.md#structured-logging)'s for `log/slog` over a third-party logger and [Database Access](README.md#database-access)'s for `sqlc` over an ORM: take the smallest dependency that closes a real gap in the standard library (route-parameter parsing and middleware composition, in this case — `net/http`'s own `ServeMux` only gained basic path variables in Go 1.22 and still has no middleware-chaining primitive), not the biggest one that could.
 
-- **A middleware is `func(http.Handler) http.Handler`** — wraps a handler, optionally acts before/after calling it, and the chain is composed once at startup, not per-request:
+- **Middleware is chi's native `func(http.Handler) http.Handler`** — identical shape to a hand-rolled middleware, registered via `r.Use(...)`, composed once at startup:
   ```go
-  type Middleware func(http.Handler) http.Handler
-
-  func Chain(h http.Handler, mw ...Middleware) http.Handler {
-      for i := len(mw) - 1; i >= 0; i-- {
-          h = mw[i](h)
-      }
-      return h
-  }
+  import (
+      "github.com/go-chi/chi/v5"
+      "github.com/go-chi/chi/v5/middleware"
+  )
 
   // gateway/main.go
-  handler := Chain(routes,
-      RequestIDMiddleware,   // outermost: assigns request_id first
-      LoggingMiddleware,     // builds the request-scoped slog.Logger
-      AuthMiddleware,        // resolves RequestContext's actor identity
-      RateLimitMiddleware,   // per Redis, per Container Diagrams
-  )
+  r := chi.NewRouter()
+  r.Use(middleware.RequestID)   // outermost: assigns request_id first
+  r.Use(LoggingMiddleware)      // builds the request-scoped slog.Logger, per Structured Logging above
+  r.Use(AuthMiddleware)         // resolves RequestContext's actor identity
+  r.Use(RateLimitMiddleware)    // per Redis, per Container Diagrams
+
+  r.Route("/v1", func(r chi.Router) {
+      r.Get("/sessions/{sessionID}", handlers.GetSession)
+  })
   ```
-- **Order is load-bearing, not incidental** — `RequestIDMiddleware` and `LoggingMiddleware` must run before `AuthMiddleware` so an authentication failure is still logged with a request ID; `AuthMiddleware` must run before any handler that generates an `AccessAuditEvent`, since [Component Diagrams](../03-architecture/diagrams.md#component-diagrams)'s `RequestContext` (actor identity, source IP) has to exist before `AuditedQueryHandler` can populate it.
-- **Handlers are thin — they parse, call into the use-case/domain layer, and serialize the response.** Business logic (BR-1 through BR-7, masking decisions) never lives in an `http.HandlerFunc` body; per the Software Design System section below, a handler is an *adapter*, and an adapter's job is translation at the boundary, not decision-making.
+- **Order is load-bearing, not incidental** — `middleware.RequestID` and `LoggingMiddleware` must run before `AuthMiddleware` so an authentication failure is still logged with a request ID; `AuthMiddleware` must run before any handler that generates an `AccessAuditEvent`, since [Component Diagrams](../03-architecture/diagrams.md#component-diagrams)'s `RequestContext` (actor identity, source IP) has to exist before `AuditedQueryHandler` can populate it. `r.Use(...)` calls apply in the order registered, identically to a hand-rolled chain — chi doesn't reorder or make this implicit.
+- **chi's own `middleware` package supplies `RequestID`, `Logger`, `Recoverer`, and `Timeout` out of the box** — use `middleware.RequestID` and `middleware.Recoverer` directly rather than re-implementing them; `Logger` is replaced by this project's own `LoggingMiddleware` (per [Structured Logging](README.md#structured-logging), since chi's built-in `Logger` writes to stdout in its own format, not `log/slog`).
+- **URL parameters come from `chi.URLParam(r, "sessionID")`, read inside the handler** — not a framework-specific context type; the handler still receives a plain `http.ResponseWriter, *http.Request`.
+- **Handlers are thin — they parse, call into the use-case/domain layer, and serialize the response.** Business logic (BR-1 through BR-7, masking decisions) never lives in an `http.HandlerFunc` body; per the Software Design System section below, a handler is an *adapter*, and an adapter's job is translation at the boundary, not decision-making. This doesn't change with chi — a chi handler is still exactly an `http.HandlerFunc`.
 
 ### Database Access
 
@@ -195,7 +196,9 @@ Sources: [Secure Randomness in Go 1.22 — The Go Programming Language](https://
 }
 ```
 
-**`typescript-eslint`'s `recommended-type-checked` + `stylistic-type-checked` configs**, not the non-type-checked `recommended` alone — the type-checked rules catch the class of bug this project's compliance surface can least afford (e.g. `no-floating-promises`, which would otherwise let an `await`-less `fetch` to `query-api` fail silently, exactly the kind of dropped-write that would undermine an audit-trail guarantee if it happened on a write path).
+**[Biome](https://biomejs.dev)**, not an ESLint+Prettier pair — one Rust-based tool for both linting and formatting, single config, no risk of the two disagreeing on style. Biome's `recommended` rule set is the baseline; **`noFloatingPromises` is enabled explicitly**, since it catches the class of bug this project's compliance surface can least afford — an `await`-less `fetch` to `query-api` failing silently, exactly the kind of dropped-write that would undermine an audit-trail guarantee if it happened on a write path.
+
+**One honest caveat, not glossed over:** unlike `typescript-eslint`'s type-checked rules (which query the real TypeScript compiler), Biome v2's type-aware linting runs its own from-scratch type-inference engine ("Biotype") rather than shelling out to `tsc` — this is what makes it fast enough to run inline, but `noFloatingPromises` specifically is still in Biome's `nursery` (unstable, opt-in-by-name) rule group, and independent testing found it catches roughly 75% of the floating-promise cases a real compiler-backed check would. Enable it anyway — catching most of this bug class beats catching none of it — but don't treat a clean Biome run as an airtight guarantee the way a passing `go vet` is; a `wrapcheck`-style backstop at the `query-api` client call sites specifically is worth a second look if this ever becomes a real incident, not just a lint rule.
 
 **`type` over `interface` by default; `interface` only for a public, extensible object contract (rare in this codebase) or a class contract.** Per the current community consensus, `type` is the only syntax that expresses union types, so any type modeling a set of states — most concretely, [Domain Model](../02-domain/README.md#domain-model)'s `AccessAuditEvent.action` enum, or a UI state that's genuinely one-of-several-shapes — has to be a discriminated union, which forces the choice for the type it's part of.
 
@@ -221,7 +224,7 @@ function describe(event: AccessAuditEvent): string {
 
 This is the direct TypeScript-side expression of this document's recurring thesis (make the wrong thing not compile) — the `never`-typed exhaustiveness check means adding a new `action` variant to [Event Schema](../05-data/README.md#event-schema) without updating every switch over it is a compile error in `dashboard`, not a runtime gap discovered later.
 
-**`unknown`, never `any`, at any boundary where a value's shape isn't yet proven** — an API response from `query-api` is `unknown` until it's validated (see below), a caught error is `unknown` (per `useUnknownInCatchVariables` above), and a narrowing check (a type guard, a schema parse) is what turns it into a trusted type. `any` anywhere in this codebase is a `typescript-eslint`(`no-explicit-any`)-flagged finding, not a style nitpick.
+**`unknown`, never `any`, at any boundary where a value's shape isn't yet proven** — an API response from `query-api` is `unknown` until it's validated (see below), a caught error is `unknown` (per `useUnknownInCatchVariables` above), and a narrowing check (a type guard, a schema parse) is what turns it into a trusted type. `any` anywhere in this codebase is a Biome `noExplicitAny`-flagged finding (part of its `recommended` set), not a style nitpick.
 
 **Runtime schema validation at every network boundary, using [Zod](https://zod.dev)** — TypeScript's type system is erased at compile time, so a `query-api` response typed as `Session` without a runtime check is trusting the network, not verifying it. Every fetch from `dashboard` and every event `browser-sdk` accepts from host-page config parses through a Zod schema before the rest of the code ever sees it as a typed value — the same "verify the boundary, trust the interior" principle [Software Design System](README.md#software-design-system)'s Error Contracts section already applies to the Go backend's API responses.
 
@@ -241,7 +244,7 @@ async function fetchSession(id: string): Promise<Session> {
 
 **Testing: [Vitest](https://vitest.dev), not Jest, for both `browser-sdk` and `dashboard`.** Native ESM, Vite-native (so `dashboard`'s dev and test configuration share one transform pipeline instead of two), and materially faster on this codebase's realistic size — the same "prefer the standard-adjacent, lower-ceremony tool" bias [Coding Standards](README.md#coding-standards)' choice of stdlib `testing`+`testify` over a BDD framework already applies on the Go side. [React Testing Library](https://testing-library.com/react) for `dashboard` component tests, querying by role/label the way a user actually interacts with a screen — never by CSS class or a `data-testid` when an accessible query exists, since an accessible query is also, incidentally, the closest thing to an automated accessibility check this codebase gets for free.
 
-Sources: [TypeScript strict mode: the 6 tsconfig options that actually matter in production](https://dev.to/jtorchia/typescript-strict-mode-the-6-tsconfig-options-that-actually-matter-in-production-and-when-to-446d), [typescript-eslint: Linting with Type Information](https://typescript-eslint.io/getting-started/typed-linting/), [Types vs. interfaces in TypeScript — LogRocket](https://blog.logrocket.com/types-vs-interfaces-typescript/), [Vitest vs Jest — Speakeasy](https://www.speakeasy.com/blog/vitest-vs-jest/).
+Sources: [TypeScript strict mode: the 6 tsconfig options that actually matter in production](https://dev.to/jtorchia/typescript-strict-mode-the-6-tsconfig-options-that-actually-matter-in-production-and-when-to-446d), [Biome v2 — codename Biotype](https://biomejs.dev/blog/biome-v2/), [noFloatingPromises — Biome](https://biomejs.dev/linter/rules/no-floating-promises/), [Stress testing Biome's noFloatingPromises lint rule — Vercel](https://vercel.com/blog/stress-testing-biomes-nofloatingpromises-lint-rule), [Types vs. interfaces in TypeScript — LogRocket](https://blog.logrocket.com/types-vs-interfaces-typescript/), [Vitest vs Jest — Speakeasy](https://www.speakeasy.com/blog/vitest-vs-jest/).
 
 ### What's Deliberately Not Modeled Here
 

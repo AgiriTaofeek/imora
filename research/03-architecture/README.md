@@ -342,9 +342,12 @@ imora/
 │                                # never a direct store connection
 ├── packages/                   # the Shared Kernel, made literal
 │   ├── domain-types/           # Session, SessionEvent, AccessAuditEvent, and every entity from
-│   │                           # README.md#domain-model — the single source browser-sdk, ingestion, and
-│   │                           # query-api all import directly, per their Shared Kernel relationship
-│   └── event-schemas/          # the README.md#event-catalog payload shapes, shared by producers and consumers
+│   │                           # README.md#domain-model. JSON Schema files are the actual source of
+│   │                           # truth (a Go package can't be imported by TypeScript) — ingestion and
+│   │                           # query-api import the generated Go structs; browser-sdk and dashboard
+│   │                           # import the Zod schemas derived from the same JSON Schema files, per
+│   │                           # docs/setup-guide.md §5. Same entity definition, two generated forms.
+│   └── event-schemas/          # the README.md#event-catalog payload shapes — same schema-driven mechanism
 ├── deploy/
 │   ├── compose/                # single-machine profile manifests, per README.md#deployment-model
 │   └── kubernetes/             # cluster profile manifests

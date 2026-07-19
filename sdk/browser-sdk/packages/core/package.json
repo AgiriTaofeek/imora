@@ -1,0 +1,28 @@
+{
+  "name": "@imora/core",
+  "version": "0.1.0",
+  "description": "Framework-agnostic capture core: session/error/performance capture, capture-time masking, transport. See docs/design-system.md §11.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "@imora/event-schemas": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "vitest": "^4.1.10"
+  }
+}

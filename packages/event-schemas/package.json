@@ -1,0 +1,15 @@
+{
+  "name": "@imora/event-schemas",
+  "version": "1.0.0",
+  "description": "Shared JSON-Schema-derived event/domain types, generated for Go and TypeScript from one source of truth. See docs/setup-guide.md §5.",
+  "main": "src/index.ts",
+  "scripts": {
+    "generate": "mkdir -p src/gen && quicktype -s schema -l typescript-zod schemas/*.schema.json -o src/gen/event-schemas.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "zod": "^4"
+  }
+}

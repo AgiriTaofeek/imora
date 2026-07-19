@@ -207,22 +207,24 @@ Each framework package's only job is a lifecycle adapter (a React error boundary
 
 ```
 dashboard/
-├── app/
+├── src/
 │   ├── routes/
 │   │   ├── sessions.search.tsx        # mirrors user-stories.md's Flow B
 │   │   ├── legal-holds.tsx             # mirrors Flow G
 │   │   └── evidence-export.tsx         # mirrors Flow H
 │   ├── server/                          # server functions — see the rule below
-│   └── shared/{components,hooks,lib}/   # generic, reusable across routes only
-└── app.config.ts
+│   └── components/                      # generic, reusable across routes only
+└── vite.config.ts
 ```
+
+Confirmed against `@tanstack/cli`'s actual output, not the framework's own generic docs — the CLI scaffolds under `src/` (`src/routes/`, `src/components/`, `src/integrations/`), with `vite.config.ts` as the build config, not `app/`/`app.config.ts`. An earlier draft of this document assumed the latter and was wrong; [`docs/setup-guide.md §8`](../docs/setup-guide.md) has the verified structure.
 
 ### The One Rule TanStack Start Adds: Server Functions Are a Proxy, Never a Data-Access Path
 
 A plain SPA could only ever call `query-api` from the browser. TanStack Start's server functions and route loaders execute **on the server** — which makes it technically possible to import a database driver and query Postgres/ClickHouse directly from `dashboard`, bypassing `query-api`'s `AuditedQueryHandler` entirely. **This must never happen.** Every server function's only external call is HTTP to `query-api`'s REST API — identical in shape to what client-side code would call, just executing server-side for the initial render.
 
 ```typescript
-// app/server/sessions.ts — correct: proxies to query-api, holds no store credentials
+// src/server/sessions.ts — correct: proxies to query-api, holds no store credentials
 export const getSession = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data: id }) => {
@@ -271,4 +273,4 @@ Zustand, not Redux — this codebase's actual client-only state (environment sel
 
 ## What This Feeds
 
-Implementation — this and [`coding-standards.md`](coding-standards.md) are the last two planning documents before code; nothing downstream of these two is left to invent ahead of the code that needs it.
+[`setup-guide.md`](setup-guide.md) — this and [`coding-standards.md`](coding-standards.md) are the last two planning documents before code; `setup-guide.md` is where their decisions actually get run as commands.

@@ -1,0 +1,24 @@
+# Go
+/bin/
+*.test
+*.out
+
+# Node / pnpm
+node_modules/
+.turbo/
+dist/
+.vite/
+
+# Generated (regenerate via codegen, per §5 — don't hand-edit, but do commit unless your team decides otherwise)
+# packages/*/gen/ is intentionally NOT ignored here — see the note in §5.
+
+# Env / secrets — never committed
+.env
+.env.local
+*.pem
+*.key
+
+# OS/editor noise
+.DS_Store
+.idea/
+*.swp

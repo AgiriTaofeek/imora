@@ -2,7 +2,7 @@
 
 > Build-ready rules for both language surfaces: **Part A** covers the six Go backend services (`gateway`, `ingestion`, `query-api`, `alert-engine`, `workers`, `notification-service`); **Part B** covers the two TypeScript surfaces (`browser-sdk`, `dashboard`). The reasoning, sourcing, and how each rule ties back to this project's actual constraints lives in [`research/11-engineering/README.md#coding-standards`](../research/11-engineering/README.md#coding-standards) — this file is the checklist and the snippets you actually work from, not the argument for why.
 >
-> Baseline: **Go 1.24+**, **TypeScript 5.6+**.
+> Baseline: **Go 1.24+**, **TypeScript 6.x** (pinned, not 7 — see [`setup-guide.md §4`](setup-guide.md) for why, and revisit at TypeScript 7.1).
 
 ---
 
@@ -15,28 +15,27 @@
 - No per-service lint config drift. If a service needs an exception, it's a documented, reviewed override in the shared config — not a local `.golangci.yml`.
 
 ```yaml
-# .golangci.yml — one file, root of the monorepo
+# .golangci.yml — one file, root of the monorepo. golangci-lint v2 config format —
+# note the required version field and linters.default; this replaced the v1
+# enable-all/disable-all shape.
+version: "2"
+
 run:
   timeout: 5m
 
 linters:
+  default: standard   # errcheck, govet, staticcheck, unused, ineffassign
   enable:
-    - errcheck
-    - govet
-    - staticcheck
-    - unused
-    - ineffassign
     - bodyclose
     - contextcheck
     - containedctx
     - wrapcheck
     - gosec
-
-linters-settings:
-  wrapcheck:
-    ignoreSigs:
-      - context.Canceled
-      - context.DeadlineExceeded
+  settings:
+    wrapcheck:
+      ignoreSigs:
+        - context.Canceled
+        - context.DeadlineExceeded
 ```
 
 ## 2. Naming Conventions
@@ -234,28 +233,29 @@ func main() {
 
 ## 9. HTTP Handlers and Middleware
 
-No web framework — `net/http` plus a middleware chain.
+**[chi](https://github.com/go-chi/chi)** (`github.com/go-chi/chi/v5`) — not Gin/Echo/Fiber. Chi middleware is a plain `func(http.Handler) http.Handler`, a chi handler is a plain `http.HandlerFunc`, and `chi.Router` itself is an `http.Handler` — no framework-specific context type, no reflection-based binding. It closes the one real gap `net/http`'s own `ServeMux` still has (middleware composition; URL-parameter routing only landed in Go 1.22 and is thinner than chi's), nothing more — same reasoning as `sqlc` over an ORM.
 
 ```go
-type Middleware func(http.Handler) http.Handler
-
-func Chain(h http.Handler, mw ...Middleware) http.Handler {
-    for i := len(mw) - 1; i >= 0; i-- {
-        h = mw[i](h)
-    }
-    return h
-}
+import (
+    "github.com/go-chi/chi/v5"
+    "github.com/go-chi/chi/v5/middleware"
+)
 
 // gateway/main.go — order is load-bearing
-handler := Chain(routes,
-    RequestIDMiddleware,   // outermost: assigns request_id first
-    LoggingMiddleware,     // builds the request-scoped slog.Logger
-    AuthMiddleware,        // resolves RequestContext's actor identity — must precede audit-writing handlers
-    RateLimitMiddleware,   // per Redis, per Container Diagrams
-)
+r := chi.NewRouter()
+r.Use(middleware.RequestID)   // outermost: assigns request_id first
+r.Use(LoggingMiddleware)      // builds the request-scoped slog.Logger
+r.Use(AuthMiddleware)         // resolves RequestContext's actor identity — must precede audit-writing handlers
+r.Use(RateLimitMiddleware)    // per Redis, per Container Diagrams
+
+r.Route("/v1", func(r chi.Router) {
+    r.Get("/sessions/{sessionID}", handlers.GetSession)
+})
 ```
 
-Handlers parse, call the use-case layer, serialize the response. Business logic never lives in an `http.HandlerFunc` body — a handler is an adapter (see [`design-system.md`](design-system.md)).
+`middleware.RequestID` and `middleware.Recoverer` come from chi's own `middleware` package — use them directly rather than reimplementing. Chi's built-in `Logger` middleware is **not** used — it writes its own stdout format, not `log/slog` (§4) — `LoggingMiddleware` above is this project's own.
+
+Handlers parse, call the use-case layer, serialize the response — `chi.URLParam(r, "sessionID")` for path params, still a plain `http.ResponseWriter, *http.Request` signature. Business logic never lives in an `http.HandlerFunc` body — a handler is an adapter (see [`design-system.md`](design-system.md)).
 
 ## 10. Database Access
 
@@ -387,7 +387,9 @@ func TestRetentionPolicy_LongestClockWins(t *testing.T) {
 }
 ```
 
-`typescript-eslint`'s `recommended-type-checked` + `stylistic-type-checked` configs — not the non-type-checked `recommended` alone. The type-checked rules catch `no-floating-promises`, which matters directly here: an `await`-less call to `query-api` would otherwise fail silently, exactly the kind of dropped write this project's compliance surface can't tolerate.
+**[Biome](https://biomejs.dev)** — one tool for lint + format, `recommended` rule set as the base, with `noFloatingPromises` turned on explicitly: an `await`-less call to `query-api` failing silently is exactly the kind of dropped write this project's compliance surface can't tolerate. One caveat worth remembering: `noFloatingPromises` is still in Biome's `nursery` group and, per independent testing, catches roughly 75% of the cases a real compiler-backed check would (Biome's type-aware mode uses its own inference engine, not `tsc`) — enable it, but don't treat a clean run as an airtight guarantee.
+
+Generate via `pnpm exec biome init` rather than hand-copying a config — it writes the correct schema for whatever Biome version is actually installed (the exact key names, e.g. `rules.preset` vs. `rules.recommended`, have shifted across Biome versions). Take its output as-is, then set `formatter.indentStyle` to `"space"` (must match `.editorconfig`) and add `linter.rules.nursery.noFloatingPromises: "error"` — see [`setup-guide.md §4`](setup-guide.md) for the full worked example. Nested per-package configs (`sdk/browser-sdk/packages/*`, `dashboard`) use `"root": false` + `"extends": "//"` rather than duplicating the root config.
 
 ## 17. Naming & Type Conventions
 
@@ -443,10 +445,10 @@ async function fetchSession(id: string): Promise<Session> {
 
 `dashboard` is [TanStack Start](https://tanstack.com/start) (SSR, on Node via Nitro) — not a static SPA. File-based routes mirror [`user-stories.md`](user-stories.md)'s flow boundaries: `routes/sessions.search.tsx`, `routes/legal-holds.tsx`, `routes/evidence-export.tsx`.
 
-**The one rule everything else here follows: a server function or route loader's only external call is HTTP to `query-api`. Never a direct database import.** SSR makes it *possible* for `dashboard` to hold its own Postgres/ClickHouse credentials — doing so would bypass `query-api`'s audit-event guarantee entirely, per [`design-system.md §12`](design-system.md). Code review should treat a database driver import anywhere under `app/server/` as a blocking finding, not a style comment.
+**The one rule everything else here follows: a server function or route loader's only external call is HTTP to `query-api`. Never a direct database import.** SSR makes it *possible* for `dashboard` to hold its own Postgres/ClickHouse credentials — doing so would bypass `query-api`'s audit-event guarantee entirely, per [`design-system.md §12`](design-system.md). Code review should treat a database driver import anywhere under `src/server/` as a blocking finding, not a style comment.
 
 ```typescript
-// app/server/sessions.ts — correct: proxies to query-api
+// src/server/sessions.ts — correct: proxies to query-api
 export const getSession = createServerFn({ method: "GET" })
   .validator((id: string) => id)
   .handler(async ({ data: id }) => {

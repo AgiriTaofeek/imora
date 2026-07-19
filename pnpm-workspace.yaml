@@ -1,0 +1,27 @@
+packages:
+  - "sdk/browser-sdk/packages/*"
+  - "dashboard"
+  - "packages/event-schemas" # the TS side of the shared schema package, per §5
+
+allowBuilds:
+  # esbuild's postinstall script fetches its platform-specific native binary — required for
+  # tsup/vite/vitest to function at all, not an optional/suspicious script. Allowed deliberately.
+  esbuild: true
+  # lightningcss (Tailwind v4's CSS engine, pulled in by dashboard) — same reasoning: native
+  # binary fetch via postinstall, required for `vite build`/`vite dev` to work, not optional.
+  # The TanStack Start scaffolder wrote this under dashboard/package.json's "pnpm" field, which
+  # is the pnpm 10-and-earlier location — pnpm 11 ignores it silently. This is the real location.
+  lightningcss: true
+
+# pnpm 11 defaults to rejecting any package version published <24h ago (minimumReleaseAge, a
+# supply-chain guard). Named, narrow exceptions here, not a blanket minimumReleaseAge: 0 —
+# keep the protection everywhere else. Remove an entry once its package has naturally aged past 24h.
+minimumReleaseAgeExclude:
+  - "js-base64@3.9.0" # published 2026-07-14; flagged during initial pnpm 11 migration
+  - '@turbo/darwin-64@2.10.5'
+  - '@turbo/darwin-arm64@2.10.5'
+  - '@turbo/linux-64@2.10.5'
+  - '@turbo/linux-arm64@2.10.5'
+  - '@turbo/windows-64@2.10.5'
+  - '@turbo/windows-arm64@2.10.5'
+  - turbo@2.10.5
