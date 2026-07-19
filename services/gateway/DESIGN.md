@@ -41,13 +41,15 @@ Each of these is a real, contested, not-yet-resolved decision — tracked as its
 
 - **Session model for Domain B**: server-side session store, Redis-backed, opaque `HttpOnly`/`Secure`/`SameSite=Strict` cookie — [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md), _Accepted_.
 - **Project Key format**: opaque random string, Redis-lookup validation — no signature, no embedded secret component — [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md), _Accepted_.
-- **Cache-outage failure mode** for Project Key validation (fail open vs. fail closed) — [ADR 0010](../../research/11-engineering/architecture-decisions/0010-gateway-cache-failure-mode.md), _Proposed, undecided_.
+- **Cache-outage failure mode** for Project Key validation: bounded grace-period local cache (neither pure fail-open nor pure fail-closed) — [ADR 0010](../../research/11-engineering/architecture-decisions/0010-gateway-cache-failure-mode.md), _Accepted_.
+
+All three open decisions from this doc's original scaffolding are now resolved — see [Data Model](#data-model) and [Failure Modes](#failure-modes--abuse-cases) below for how they translate into the actual implementation shape.
 
 ## Data Model
 
 **Session record** (Redis, per [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md)) — first cut: `{sessionId, userId, role, createdAt, expiresAt, lastSeenAt}`, keyed by `sessionId` (the value inside the signed cookie). TTL matches `expiresAt`, refreshed on activity up to some max lifetime — exact values still open (not consequential enough to need its own ADR, revisit when actually implementing).
 
-**Project Key record** (Redis, per [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md)) — first cut: `{keyId} → {projectId, active, createdAt}`, keyed by `keyId` (the opaque string embedded in the customer's `init()` call). The Redis entry is a cache in front of the real source of truth in Postgres (`Project` row) — cache-population/invalidation-on-revoke mechanics still open, see Failure Modes below.
+**Project Key record** (Redis, per [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md)) — first cut: `{keyId} → {projectId, active, createdAt}`, keyed by `keyId` (the opaque string embedded in the customer's `init()` call). The Redis entry is a cache in front of the real source of truth in Postgres (`Project` row). Additionally, per [ADR 0010](../../research/11-engineering/architecture-decisions/0010-gateway-cache-failure-mode.md), `gateway` keeps a second, in-process cache of `{keyId: validUntil}` for recently-confirmed-valid keys, used only as a bounded fallback when Redis itself is unreachable.
 
 _Still TBD:_
 - _`Project` itself (owner, created-at, active/revoked state, relationship to its Project Key(s) — can a project have more than one key, e.g. for rotation? not yet specified anywhere in the domain model)_
@@ -58,9 +60,10 @@ _TBD — endpoint list not yet enumerated. Known so far: login, logout, first-ru
 
 ## Failure Modes & Abuse Cases
 
-_TBD — needs at least:_
-- _Project Key leaked/scraped — detection and revocation path_
-- _Cache unreachable (see ADR 0010)_
+**Resolved**: Redis unreachable during Project Key validation — bounded grace-period local cache, per [ADR 0010](../../research/11-engineering/architecture-decisions/0010-gateway-cache-failure-mode.md). A never-before-seen key arriving during an outage is rejected (nothing to fall back on); an already-active key keeps working for a bounded window.
+
+_Still TBD:_
+- _Project Key leaked/scraped — detection and proactive-revocation path (the mechanics of revoking are covered by 0010's design, but nothing yet detects a leak in the first place)_
 - _`gateway` itself down — blast radius on both domains_
 - _Brute-force / credential-stuffing against Domain B login_
 

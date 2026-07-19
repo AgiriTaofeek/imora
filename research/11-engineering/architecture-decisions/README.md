@@ -13,7 +13,7 @@
 | [0007](0007-keypair-signing-over-keyless.md) | Container images signed with a Cosign key pair, not Sigstore keyless signing | Accepted |
 | [0008](0008-gateway-session-model.md) | Session model for human/dashboard authentication in `gateway` | Accepted |
 | [0009](0009-project-key-format.md) | Project Key format for SDK/ingest authentication | Accepted |
-| [0010](0010-gateway-cache-failure-mode.md) | Fail-open vs. fail-closed when Project Key validation's cache is unreachable | Proposed |
+| [0010](0010-gateway-cache-failure-mode.md) | Bounded grace-period local cache for Project Key validation during Redis outages | Accepted |
 
 ## When to Write a New ADR
 
