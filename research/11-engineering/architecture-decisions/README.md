@@ -11,6 +11,9 @@
 | [0005](0005-unified-access-audit-event.md) | One AccessAuditEvent entity with an action enum, not separate logs per action type | Accepted |
 | [0006](0006-two-tier-pii-masking.md) | Two-tier masking: hard redaction vs. vault-backed soft masking | Accepted |
 | [0007](0007-keypair-signing-over-keyless.md) | Container images signed with a Cosign key pair, not Sigstore keyless signing | Accepted |
+| [0008](0008-gateway-session-model.md) | Session model for human/dashboard authentication in `gateway` | Proposed |
+| [0009](0009-project-key-format.md) | Project Key format for SDK/ingest authentication | Proposed |
+| [0010](0010-gateway-cache-failure-mode.md) | Fail-open vs. fail-closed when Project Key validation's cache is unreachable | Proposed |
 
 ## When to Write a New ADR
 
