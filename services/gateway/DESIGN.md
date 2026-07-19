@@ -39,15 +39,16 @@ _TBD — needs real sequence diagrams (Mermaid, matching the convention already 
 
 Each of these is a real, contested, not-yet-resolved decision — tracked as its own ADR rather than decided inline here, since each is independently consequential:
 
-- **Session model for Domain B** (server-side store vs. JWT) — [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md), _Proposed, undecided_.
+- **Session model for Domain B**: server-side session store, Redis-backed, opaque `HttpOnly`/`Secure`/`SameSite=Strict` cookie — [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md), _Accepted_.
 - **Project Key format** (opaque + lookup vs. self-verifying signed token) — [ADR 0009](../../research/11-engineering/architecture-decisions/0009-project-key-format.md), _Proposed, undecided_.
 - **Cache-outage failure mode** for Project Key validation (fail open vs. fail closed) — [ADR 0010](../../research/11-engineering/architecture-decisions/0010-gateway-cache-failure-mode.md), _Proposed, undecided_.
 
 ## Data Model
 
-_TBD — first cut needed for:_
+**Session record** (Redis, per [ADR 0008](../../research/11-engineering/architecture-decisions/0008-gateway-session-model.md)) — first cut: `{sessionId, userId, role, createdAt, expiresAt, lastSeenAt}`, keyed by `sessionId` (the value inside the signed cookie). TTL matches `expiresAt`, refreshed on activity up to some max lifetime — exact values still open (not consequential enough to need its own ADR, revisit when actually implementing).
+
+_Still TBD:_
 - _`Project` (key, owner, created-at, active/revoked state — not yet specified anywhere in the domain model)_
-- _Session/token record shape (depends on ADR 0008)_
 
 ## API Surface
 
