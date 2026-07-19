@@ -615,6 +615,32 @@ If AI-assisted work is reverted more often or takes longer to review than it sav
 
 ---
 
+# How to Think Before Writing Any Code
+
+This is Principle 1 ("Design Before Code") made concrete — the actual mental checklist, not just the instruction to have one. Run through this before any non-trivial feature, whether the code will be AI-assisted or not.
+
+1. **Understand the actual need, not the literal request.** "I need a gateway" usually means "I need requests handled safely and routed correctly" — the mechanism is negotiable, the underlying need isn't. Take the literal ask as a clue, not a spec.
+
+2. **Map every trust boundary — who's on each side, what do they know, what can they be trusted with.** The single most important habit. Two callers that both technically "call the same endpoint" can be categorically different (an anonymous browser sending telemetry vs. a logged-in human) — and that difference should usually drive the design, not get flattened away by one shared code path.
+
+3. **Separate settled from open, explicitly.** Don't silently assume something undecided is decided, and don't re-litigate something that's genuinely already been resolved. Check the actual docs/code before assuming either way — a two-minute check beats building on a wrong assumption.
+
+4. **Draw the data flow before designing any interface.** Who calls whom, in what order, what crosses each hop. Endpoints, function signatures, and struct fields should fall out of that picture, not precede it.
+
+5. **Reason about volume and frequency concretely, before optimizing anything.** Which paths are *hot* (called constantly, at real scale) versus *cold* (called rarely, by a handful of humans)? That distinction should decide where engineering rigor and performance budget actually go — guessing at performance without asking this first over-engineers the wrong path and under-engineers the one that matters.
+
+6. **Be suspicious of one word doing two jobs.** Any time a single component's responsibilities, once actually enumerated, turn out to serve two very different callers with two very different needs — that's a smell, not a coincidence.
+
+7. **Think about failure and abuse before happy-path design.** What happens when a credential leaks? What happens if this service goes down? These aren't error-handling afterthoughts — they change the shape of the design itself.
+
+8. **Decide the shape before the details.** Architecture — which services exist, what crosses which boundary — comes before endpoint names, field names, package layout.
+
+9. **Externalize it.** A design that only exists in your head hasn't been tested for holes. Write it down, diagram it, or explain it to someone (or an AI) who can push back — that's how a gap gets found before it's in code, not after.
+
+10. **Only then: data model → interfaces → tests → code, in that order.**
+
+---
+
 # Practical AI Workflow
 
 For every feature:
