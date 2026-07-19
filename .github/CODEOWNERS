@@ -1,0 +1,30 @@
+# Auto-requests a reviewer based on which paths a PR touches. Last matching pattern wins, so
+# more specific rules go after the catch-all. Replace the placeholder handles below with real
+# GitHub usernames or teams (e.g. @your-org/backend) as the team grows — until then, everything
+# defaults to the repo owner so this file is functional, not broken, from day one.
+#
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @AgiriTaofeek
+
+# --- Backend (Go) ---
+/services/                     @AgiriTaofeek
+/packages/domain-types/        @AgiriTaofeek
+
+# --- Frontend (TypeScript) ---
+/dashboard/                    @AgiriTaofeek
+/sdk/browser-sdk/              @AgiriTaofeek
+/packages/event-schemas/       @AgiriTaofeek
+
+# --- Security / audit / compliance-sensitive — worth a stricter reviewer as the team grows ---
+/research/07-security/         @AgiriTaofeek
+/SECURITY.md                   @AgiriTaofeek
+
+# --- Governance / process — changes here affect how everyone works, review carefully ---
+/CLAUDE.md                     @AgiriTaofeek
+/.agents/skills/                @AgiriTaofeek
+/.github/                      @AgiriTaofeek
+
+# --- Documentation (lower-stakes, but still routed) ---
+/docs/                          @AgiriTaofeek
+/research/                      @AgiriTaofeek
