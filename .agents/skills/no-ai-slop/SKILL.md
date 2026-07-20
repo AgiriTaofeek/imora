@@ -637,7 +637,7 @@ This is Principle 1 ("Design Before Code") made concrete — the actual mental c
 
 9. **Externalize it.** A design that only exists in your head hasn't been tested for holes. Write it down, diagram it, or explain it to someone (or an AI) who can push back — that's how a gap gets found before it's in code, not after.
 
-10. **Only then: data model → interfaces → tests → code, in that order.**
+10. **Only then: data model → interfaces → pseudocode (reviewed) → tests → code, in that order.** Pseudocode is its own stage, not a formality — present interfaces and control flow as commented pseudocode, get explicit sign-off, before translating to real code. It's cheap to redirect a wrong decision or catch a missing interface method in pseudocode; it's a diff by the time it's real code, and review-after-the-fact isn't equivalent to catching it before it existed.
 
 ---
 
