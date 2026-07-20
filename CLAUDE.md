@@ -50,6 +50,11 @@ AI-assisted change. Apply it — don't just know it exists.
 problem, constraints, and scope before writing code. Don't start typing on a vague request —
 ask, or state the assumptions you're proceeding under.
 
+**Pseudocode before real code, for any non-trivial logic.** Present interfaces and control flow
+as commented pseudocode first, get explicit sign-off, then translate to real code. Don't skip to
+a finished diff and treat review-after-the-fact as equivalent — the point is catching a wrong
+decision (or a missing interface method, a false assumption) before it's real code, not after.
+
 **Hard stops — never skip these, skill invoked or not:**
 - Never install or recommend a dependency without confirming it actually exists on the real
   registry, is maintained, and its license is compatible. A plausible-sounding package name is
